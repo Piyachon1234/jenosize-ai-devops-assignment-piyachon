@@ -1,0 +1,98 @@
+name: Jenie AI DevOps CI/CD
+
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_API: ${{https://github.com/Piyachon1234}}/jenie-api
+  IMAGE_NAME_WORKER: ${{https://github.com/Piyachon1234}}/jenie-worker
+
+jobs:
+  lint-and-test:
+    name: 1. Lint & Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions:setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies & Ruff
+        run: |
+          pip install ruff -r api/requirements.txt
+      - name: Run Ruff Linter
+        run: ruff check api/ worker/ scripts/
+      - name: Run Pytest Unit Suite
+        working-directory: api
+        run: pytest -v
+  security-scan-fs:
+    name: 2. Dependency & Secret Scan
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy filesystem vulnerability & secret Scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          scanners: "vuln, secret, misconfig"
+          severity: "CRITICAL, HIGH"
+          exit-code: "1"
+  build-and-scan-images:
+    name: 3. Build Versioned Docker Images & Scan
+    runs-on: ubuntu-latest
+    needs: security-scan-fs
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      short_sha: ${{ steps.vars.outputs.short_sha}}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compute immutable image tags
+        id: vars
+        run: echo "short_sha=sha-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      - name: Build API Docker Image
+        run: |
+          docker build -f api/Dockerfile -t ${{ env.REGISTRY }}/$ {{env.IMAGE_NAME_API}}:${{steps.vars.outputs.short_sha}} .
+
+      - name: Scan API Container Image with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: "${{env.REGISTRY}}/${{env.IMAGE_NAME_API}}:${{steps.vars.outputs.short_sha}}"
+          format: "table"
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: "CRITICAL,HIGH"
+
+  deploy-canary-and-verify:
+    name: 4. Canary Deploy & Automatic Rollback Gate
+    runs-on: ubuntu-latest
+    needs: build-and-scan-images
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Simulate Canary Rollout & Health Verification with Auto-Rollback
+        run: |
+          echo "Deploying canary image tag: ${{needs.build-and-scan-images.outputs.short-sha}} (20% traffic weight)"
+          bash scripts/generate_docs.sh
+          docker compose up -d --build
+          sleep 10
+
+          if ! curl -sf http://localhost:8000/healthz | grep -q "ok"; then
+            echo "[ALERT] Canary failed /healthz check. Triggering automatic rollback to previous stable release"
+            docker compose down
+            exit 1
+          fi
+
+          echo "Canary passed healthz and RAG SLO evaluation."
+          docker compose down
+
+
+

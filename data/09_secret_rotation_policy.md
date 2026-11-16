@@ -1,0 +1,2 @@
+# Secrets Management & Rotation Policy
+Never commit plaintext secrets or .env files to Git. Production workloads retrieve credentials dynamically from AWS Secrets Manager encrypted with customer-managed KMS keys and rotated every 30 days.

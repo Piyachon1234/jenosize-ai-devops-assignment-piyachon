@@ -1,0 +1,82 @@
+{
+    "uid": "jenie-ai-ops",
+    "title": "Jenie Helpdesk AI - Service & RAG Observability",
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "refresh": "5s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Request Rate (RPS)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "targets": [
+          {
+            "expr": "sum(rate(jenie_http_requests_total[1m])) by (endpoint)",
+            "legendFormat": "{{endpoint}}"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Error Rate (%)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "targets": [
+          {
+            "expr": "100 * (sum(rate(jenie_http_errors_total[1m])) or vector(0)) / clamp_min(sum(rate(jenie_http_requests_total[1m])), 0.001)",
+            "legendFormat": "Error %"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "API p95 Latency (Seconds)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(jenie_http_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+            "legendFormat": "p95 {{endpoint}}"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "RAG Pipeline Breakdown: p95 Vector Retrieval vs LLM Answer Time (s)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(jenie_rag_retrieval_duration_seconds_bucket[5m])) by (le))",
+            "legendFormat": "p95 pgvector Retrieval"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(jenie_rag_answer_duration_seconds_bucket[5m])) by (le, provider))",
+            "legendFormat": "p95 LLM Answer ({{provider}})"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "AI Cost Proxy: Token Count & Estimated Cost (USD)",
+        "type": "stat",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "targets": [
+          {
+            "expr": "sum(jenie_llm_tokens_total)",
+            "legendFormat": "Total Tokens"
+          },
+          {
+            "expr": "sum(jenie_llm_estimated_cost_usd_total)",
+            "legendFormat": "Est. Cost (USD)"
+          }
+        ]
+      }
+    ]
+  }

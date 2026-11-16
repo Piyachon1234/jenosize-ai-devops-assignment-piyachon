@@ -1,0 +1,50 @@
+groups:
+  - name: jenie_helpdesk_ai_slo_alerts
+    rules:
+      - alert: JenieHighErrorRateSpike
+        expr: |
+          (
+            sum(rate(jenie_http_errors_total[5m]))
+            /
+            clamp_min(sum(rate(jenie_http_requests_total[5m])),1)
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: jenie-api
+        annotations:
+          summary: "High HTTP error rate (>5%) on Jenie Helpdesk AI"
+          description: "Error rate exceeded 5% over the last 2 minutes. Triggering canary rollback check"
+
+      - alert: JenieHighP95Latency
+        expr: |
+          histogram_quantile(0.95, sum(rate(jenie_http_request_duration_seconds_bucket{endpoint="/asl"}[5])) by (le)) > 1.5
+        for: 3m
+        labels:
+          severity: warning
+          service: jenie-api
+        annotations:
+          summary: "POST /ask p95 latency exceeded 1.5s SLO"
+          description: "RAH query P95 latency is above 1.5 seconds for 3minutes."
+      
+      - alert: JenieSlowVectorRetrieval
+        expr: |
+          histogram_quantile(0.95, sum(rate(jenie_http_request_duration_seconds_bucket[5])) by (le)) >0.25
+        for: 3m
+        labels:
+          severity: warning
+          component: pgvector
+        annotations:
+          summary: "pgvector retrieval p95 latency > 250ms"
+          description: "Check PostgresSQL HNSW/IVFFlat index health and connection pool situation"
+      
+      - alert: JenieTokenCostAnomaly
+        expr: |
+          sum(increase(jenie_llm_estimated_cost_usd_total[1h])) > 10.0
+        for: 5m
+        labels:
+          severity: warning
+          component: finops
+        annotations:
+          summary: "Horly LLM token cost exceeded $10/hr threshold"
+          description: "Potential prompt flodding or cache miss spike detected."

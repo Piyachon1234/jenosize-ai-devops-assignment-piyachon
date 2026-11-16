@@ -1,0 +1,2 @@
+# Incident Response & Severity SLAs
+SEV-1 critical production outages require a 15-minute response SLA and <1 hour MTTR target. Page the on-call SRE via PagerDuty, open an #inc-YYYYMMDD Slack war room, and publish a blameless postmortem within 48 hours.

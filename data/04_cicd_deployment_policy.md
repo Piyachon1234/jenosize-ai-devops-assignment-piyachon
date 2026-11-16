@@ -1,0 +1,2 @@
+# CI/CD Pipeline & Canary Deployment Policy
+All repositories must pass Ruff linting, Pytest unit tests, and Trivy vulnerability scans before building container images. Production releases use Canary or Rolling deployments with automatic rollback if health checks or SLO gates fail.

@@ -1,0 +1,2 @@
+# API Rate Limiting & WAF Protection
+Public AI endpoints enforce a sliding-window rate limit of 60 requests per minute per IP via Redis and AWS WAFv2 rate-based rules to prevent Denial-of-Wallet (DoW) and prompt flooding attacks.

@@ -1,0 +1,2 @@
+# Database Backups & Disaster Recovery Runbook
+Production PostgreSQL databases run Multi-AZ with automated daily snapshots and Point-in-Time Recovery (PITR) to S3 (RPO < 5 minutes, RTO < 30 minutes). DR restore drills are executed quarterly.

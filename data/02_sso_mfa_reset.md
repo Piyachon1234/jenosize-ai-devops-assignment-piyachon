@@ -1,0 +1,2 @@
+# SSO & Hardware MFA Token Reset
+All internal tools use Okta Single Sign-On (SSO) with FIDO2 WebAuthn MFA. If you lose your YubiKey or phone, contact IT Helpdesk on Slack #it-helpdesk for a temporary 15-minute bypass code after video verification.

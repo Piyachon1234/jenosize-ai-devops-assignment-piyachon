@@ -1,0 +1,91 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: jenie-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-jenie}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jenie_local_pw}
+      POSTGRES_DB: ${POSTGRES_DB:-jeniedb}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jenie} -d ${POSTGRES_DB:-jeniedb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  
+  redis:
+    image: redis:7-alpine
+    container_name: jenie-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+  
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: jenie-api
+    environment:
+      DATABSE_URL: ${DATABASE_URL:-postgresql://jenie:jenie_local_pw@postgres:5432/jeniedb}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      DATA_DIR: /data
+      RATE_LIMIT_PER_MIN: ${RATE_LIMIT_PER_MIN:-60}
+      LLM_PROVIDER_FLAG: ${LLM_PROVIDER_FLAG:-mock-jenie-v1}
+      COST_PER_1K_TOKENS_USD: ${COST_PER_1K_TOKENS_USD:-0.002}
+    volumes:
+      - ./data:/data:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  
+  worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    container_name: jenie-worker
+    environment:
+      API_INGEST_URL: http://api:8000/ingest
+    depends_on:
+      api:
+        condition: service_healthy
+  
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: jenie-prometheus
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
+  
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: jenie-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  pgdata:
+

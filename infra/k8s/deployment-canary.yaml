@@ -1,0 +1,138 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jenie-prod
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jenie-api-sa
+  namespace: jenie-prod
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenie-api-stable
+  namespace: jenie-prod
+  labels:
+    app: jenie-api
+    track: stable
+spec:
+  replicas: 4
+  revisionHistoryLimit: 5
+  Strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: jenie-app
+      track: stable
+  template:
+    metadata:
+      labels:
+        app: jenie-api
+        track: stable
+      annotation:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+    serviceAccountName: jenie-api-sa
+    terminationGracePeriodSeconds: 30
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 10001
+      seccompProfile:
+        type: RuntimeDefault
+    containers:
+    - name: api
+      image: ghcr.io/jenosize/jenie-api:stable
+      ports:
+        - containerPort: 8000
+      envFrom:
+        - secretRef:
+            name: jenie-app-secrets
+      resources:
+        requests:
+          cpu: "250m"
+          memory: "256Mi"
+        limits: 
+          cpu: "1000m"
+          memory: "512Mi"
+      readinessProbe:
+        httpGet:
+          path: /healthz
+          port: 8000
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        failureThreshold: 2
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: 8000
+        initialDelaySeconds: 15
+        periodSeconds: 10
+        failureThreshold: 3
+      lifecycle:
+        preStop:
+          exec:
+            command: ["/bin/sh", "-c", "sleep 5"]
+---
+#Canary Track (1 replica = 20% traffic share alongside 4 stable replicas)
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenie-api-canary
+  namespace: jenie-prod
+  labels:
+    app: jenie-api
+    track: canary
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jenie-api
+      track: canary
+  template:
+    metadata:
+      labels:
+        app: jenie-api
+        track: canary
+    spec:
+      serviceAccountName: jenie-api-sa
+      terminationGracePeriodSeconds: 30
+      containers:
+      - name: api
+        image: ghcr.io/jenosize/jenie-api:canary
+        ports:
+          - containerPort: 8000
+        redinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: jenie-api-hpa
+  namespace: jenie-prod
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: jenie-api-stable
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70

@@ -1,0 +1,2 @@
+# Cloud FinOps & AI Token Cost Optimization
+Tag all AWS resources with Environment, Squad, and CostCenter. AI inference workloads use Redis caching and CPU/GPU right-sizing to reduce LLM token spend by up to 40%.

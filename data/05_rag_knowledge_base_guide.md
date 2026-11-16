@@ -1,0 +1,2 @@
+# RAG Knowledge Base & pgvector Indexing
+Jenie Helpdesk AI indexes markdown runbooks into PostgreSQL using the pgvector extension and cosine similarity search. Run POST /ingest or trigger the indexer worker whenever markdown documentation is updated.

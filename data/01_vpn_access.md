@@ -1,0 +1,2 @@
+# Corporate VPN Access & WireGuard Setup
+Employees connecting to internal staging or production VPCs must use the Jenosize WireGuard VPN client. Request access via ServiceNow ticket approved by your engineering manager. Profiles expire every 90 days.
